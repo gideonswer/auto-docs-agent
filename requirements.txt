@@ -1,0 +1,9 @@
+openai>=1.50          # one client for Gemini, Groq and Ollama (all speak the OpenAI API)
+httpx>=0.27           # downloads repos from GitHub
+python-dotenv>=1.0    # reads your .env file
+fastapi>=0.110        # web page
+uvicorn[standard]>=0.30
+anthropic>=0.40       # only needed if you switch LLM_PROVIDER=claude
+
+# tests
+pytest>=8.0

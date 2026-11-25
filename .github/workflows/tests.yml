@@ -1,0 +1,37 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # No API keys needed: the tests use a fake model
+      - run: pytest -q
+      # Dogfooding: the tool documents itself (offline mode) and must score 100%
+      - name: Document this repo with itself
+        run: |
+          python -m autodocs . --offline -o /tmp/selfdocs
+          grep -q "Fact-check score: 100.0%" /tmp/selfdocs/*/QUALITY_REPORT.md
+      - name: Fact-check this README with the tool's own checker
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from autodocs.pipeline import _repo_text
+          from autodocs.scanner import scan_repo
+          from autodocs.verify import Verifier
+          rm = scan_repo(".", "auto-docs-agent", "https://github.com/gideonswer/auto-docs-agent")
+          rep = Verifier(rm, _repo_text(Path("."))).check_all({"README.md": Path("README.md").read_text(encoding="utf-8")})
+          print(f"README fact-check: {rep.score}% ({rep.passed}/{rep.total})")
+          for c in rep.failures():
+              print("  unverified:", c.kind, c.claim)
+          raise SystemExit(0 if rep.score == 100 else 1)
+          PY

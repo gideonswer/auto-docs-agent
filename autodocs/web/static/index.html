@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto-Docs Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#18202b; --muted:#5b6675; --line:#e3e7ec; --accent:#2f5bea; --ok:#178a4c; --warn:#b26a00; --bad:#c0392b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:#111827; color:#fff; padding:28px 20px 70px; }
+  header .wrap, main { max-width:1040px; margin:0 auto; }
+  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-.01em; }
+  header p { margin:0; color:#c4cad4; }
+  main { padding:0 20px 60px; margin-top:-48px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  form { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=text] { flex:1 1 420px; padding:12px 14px; border:1px solid var(--line); border-radius:8px; font-size:15px; }
+  input[type=text]:focus { outline:2px solid var(--accent); border-color:transparent; }
+  button { padding:12px 18px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:#eef1f5; color:var(--ink); padding:8px 12px; font-size:13px; }
+  label.check { color:var(--muted); font-size:14px; display:flex; gap:6px; align-items:center; }
+  .hint { color:var(--muted); font-size:13px; margin:10px 0 0; }
+  .hint a { color:var(--accent); cursor:pointer; }
+  #progress { margin-top:16px; display:none; }
+  #log { list-style:none; padding:0; margin:0; font-size:14px; max-height:240px; overflow:auto; }
+  #log li { padding:4px 0; border-bottom:1px dashed var(--line); color:var(--muted); }
+  #log li:last-child { color:var(--ink); font-weight:500; }
+  .stage { display:inline-block; min-width:62px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); font-weight:700; }
+  #result { margin-top:16px; display:none; }
+  .bar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .tabs { display:flex; gap:4px; flex-wrap:wrap; }
+  .tab { background:none; color:var(--muted); border:1px solid transparent; padding:8px 12px; font-weight:600; font-size:14px; }
+  .tab.active { background:#eef2ff; color:var(--accent); border-color:#d9e1ff; }
+  .score { font-weight:700; padding:6px 12px; border-radius:999px; font-size:14px; }
+  .score.good { background:#e6f6ed; color:var(--ok); } .score.mid { background:#fff4e0; color:var(--warn); } .score.low { background:#fdecea; color:var(--bad); }
+  .doc { line-height:1.65; overflow-wrap:break-word; }
+  .doc td code { white-space:nowrap; }
+  .doc h1 { font-size:24px; border-bottom:1px solid var(--line); padding-bottom:6px; }
+  .doc h2 { font-size:19px; margin-top:28px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  .doc h3 { font-size:16px; margin-top:22px; }
+  .doc code { background:#f1f3f6; padding:1px 5px; border-radius:4px; font-size:13px; }
+  .doc pre { background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; overflow:auto; }
+  .doc pre code { background:none; color:inherit; padding:0; }
+  .doc table { border-collapse:collapse; width:100%; font-size:14px; display:block; overflow:auto; }
+  .doc th, .doc td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+  .doc th { background:#f8f9fb; }
+  .doc .mermaid { background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px; text-align:center; overflow:auto; }
+  .doc details { margin:8px 0; }
+  .error { color:var(--bad); font-weight:600; }
+  .raw { white-space:pre-wrap; font:13px/1.5 ui-monospace,Consolas,monospace; background:#f8f9fb; padding:14px; border-radius:8px; }
+  footer { text-align:center; color:var(--muted); font-size:13px; margin-top:30px; }
+  footer a { color:var(--muted); }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Auto-Docs Agent</h1>
+  <p>Paste a GitHub repo. An AI agent reads the code and writes a README, API reference and architecture diagrams, then fact-checks every claim against the code.</p>
+</div></header>
+<main>
+  <section class="card">
+    <form id="f">
+      <input id="repo" type="text" placeholder="https://github.com/owner/repo" autocomplete="off" required>
+      <button id="go" type="submit">Generate docs</button>
+      <label class="check"><input id="offline" type="checkbox"> Offline (no AI)</label>
+    </form>
+    <p class="hint">Try: <a data-repo="https://github.com/gideonswer/chat-with-docs">gideonswer/chat-with-docs</a> · <span id="status">checking setup…</span></p>
+    <div id="progress"><ul id="log"></ul></div>
+  </section>
+
+  <section id="result" class="card">
+    <div class="bar">
+      <div class="tabs" id="tabs"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="score" class="score"></span>
+        <button class="ghost" id="raw">Show Markdown</button>
+        <button class="ghost" id="copy">Copy</button>
+        <button class="ghost" id="dl">Download .zip</button>
+      </div>
+    </div>
+    <div id="doc" class="doc"></div>
+  </section>
+  <footer>Built by <a href="https://github.com/gideonswer">Gideon Zion Swer</a> · <a href="https://github.com/gideonswer/auto-docs-agent">Source on GitHub</a></footer>
+</main>
+
+<script>
+mermaid.initialize({ startOnLoad:false, securityLevel:"strict", theme:"default", flowchart:{ htmlLabels:false } });
+const $ = id => document.getElementById(id);
+const ICON = { fetch:"fetch", scan:"scan", explore:"agent", write:"write", verify:"check", fix:"fix", llm:"model", done:"done" };
+let job = null, current = "README.md", showRaw = false, timer = null;
+
+fetch("/api/health").then(r => r.json()).then(h => {
+  $("status").textContent = h.ai_configured ? `AI model: ${h.model}` : "No API key found in .env, so only offline mode will work";
+  if (!h.ai_configured) $("offline").checked = true;
+}).catch(() => $("status").textContent = "");
+
+document.querySelectorAll("[data-repo]").forEach(a => a.onclick = () => { $("repo").value = a.dataset.repo; });
+
+$("f").onsubmit = async e => {
+  e.preventDefault();
+  $("go").disabled = true; $("result").style.display = "none";
+  $("log").innerHTML = ""; $("progress").style.display = "block";
+  try {
+    const r = await fetch("/api/jobs", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ repo: $("repo").value, offline: $("offline").checked }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Please enter a GitHub repo URL");
+    poll(data.id);
+  } catch (err) { fail(err.message); }
+};
+
+function fail(msg) {
+  const li = document.createElement("li"); li.className = "error"; li.textContent = "❌ " + msg;
+  $("log").appendChild(li); $("go").disabled = false;
+}
+
+function poll(id) {
+  let shown = 0;
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    const j = await (await fetch(`/api/jobs/${id}`)).json();
+    for (; shown < j.events.length; shown++) {
+      const ev = j.events[shown], li = document.createElement("li");
+      li.innerHTML = `<span class="stage">${ICON[ev.stage] || ev.stage}</span> `;
+      li.appendChild(document.createTextNode(ev.message));
+      $("log").appendChild(li); $("log").scrollTop = 1e6;
+    }
+    if (j.status === "done") { clearInterval(timer); job = j; $("go").disabled = false; showResult(); }
+    if (j.status === "error") { clearInterval(timer); fail(j.error); }
+  }, 1200);
+}
+
+function showResult() {
+  $("result").style.display = "block";
+  const s = job.report.score;
+  $("score").textContent = `Fact-check ${s}%`;
+  $("score").className = "score " + (s >= 90 ? "good" : s >= 70 ? "mid" : "low");
+  $("tabs").innerHTML = "";
+  Object.keys(job.docs).forEach(name => {
+    const b = document.createElement("button");
+    b.className = "tab" + (name === current ? " active" : ""); b.textContent = name.replace(".md", "").replace("_", " ");
+    b.onclick = () => { current = name; showResult(); };
+    $("tabs").appendChild(b);
+  });
+  if (!job.docs[current]) current = "README.md";
+  render(job.docs[current]);
+}
+
+async function render(md) {
+  const el = $("doc");
+  if (showRaw) { el.innerHTML = ""; const pre = document.createElement("div"); pre.className = "raw"; pre.textContent = md; el.appendChild(pre); return; }
+  // Mermaid blocks are pulled out first so marked doesn't touch them, then rendered as diagrams.
+  const diagrams = [];
+  const text = md.replace(/```mermaid\n([\s\S]*?)```/g, (_, code) => `\n<div class="mermaid-slot" data-i="${diagrams.push(code) - 1}"></div>\n`);
+  el.innerHTML = DOMPurify.sanitize(marked.parse(text), { ADD_ATTR: ["data-i"] });
+  el.querySelectorAll("a[href]").forEach(a => {   // links to repo files point at GitHub
+    const href = a.getAttribute("href");
+    if (href.startsWith("#")) return;
+    if (/^[\w./-]+\.md$/.test(href) && job.docs[href]) { a.onclick = ev => { ev.preventDefault(); current = href; showResult(); }; return; }
+    if (!/^https?:/.test(href) && /github\.com/.test(job.repo)) a.href = job.repo.replace(/\/$/, "") + "/blob/HEAD/" + href.replace(/^\.\//, "");
+    a.target = "_blank"; a.rel = "noopener";
+  });
+  for (const slot of el.querySelectorAll(".mermaid-slot")) {
+    const code = diagrams[+slot.dataset.i];
+    try {
+      const { svg } = await mermaid.render("m" + Math.random().toString(36).slice(2), code);
+      slot.className = "mermaid"; slot.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES:{ svg:true, svgFilters:true }, ADD_TAGS:["foreignObject"] });
+    } catch (e) {
+      slot.innerHTML = ""; const pre = document.createElement("pre"); pre.textContent = code; slot.appendChild(pre);
+    }
+  }
+}
+
+$("raw").onclick = () => { showRaw = !showRaw; $("raw").textContent = showRaw ? "Show preview" : "Show Markdown"; render(job.docs[current]); };
+$("copy").onclick = async () => { await navigator.clipboard.writeText(job.docs[current]); $("copy").textContent = "Copied"; setTimeout(() => $("copy").textContent = "Copy", 1500); };
+$("dl").onclick = () => { location.href = `/api/jobs/${job.id}/download`; };
+</script>
+</body>
+</html>

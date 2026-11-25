@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "auto-docs-agent"
+version = "1.0.0"
+description = "An AI agent that reads a GitHub repo and writes a fact-checked README, API reference and Mermaid architecture diagrams."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Gideon Zion Swer" }]
+requires-python = ">=3.11"
+dependencies = ["openai>=1.50", "httpx>=0.27", "python-dotenv>=1.0", "fastapi>=0.110", "uvicorn[standard]>=0.30"]
+
+[project.optional-dependencies]
+claude = ["anthropic>=0.40"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+autodocs = "autodocs.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["autodocs*"]
+
+[tool.setuptools.package-data]
+"autodocs.web" = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
